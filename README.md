@@ -1,1 +1,2 @@
-# practical-machine-learning
+# Practical-machine-learning
+The course project.
