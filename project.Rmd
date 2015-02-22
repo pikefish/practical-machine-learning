@@ -1,0 +1,162 @@
+---
+title: "Practical Machine Learning Course Project"
+output: html_document
+---
+
+```{r, echo = FALSE}
+time <- format(Sys.time(), "%a %b %d %X %Y")
+```
+**Created `r time`**
+
+R version 3.1.2 (2014-10-31)  
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+## Problem description:
+The goal of this project is to perform a quantitative analysis of *how well people wearing accelerometers perfoming their exercises*. To achieve that, we analyse the data received from accelerometers on the belt, forearm, arm, and dumbell of six participants. The participants perform barbell lifts correctly and incorrectly in five different ways. The data for this project is generously provided by **http://groupware.les.inf.puc-rio.br/har**.
+
+#Loading data
+Create 'data' folder in your workspace (if there is no such folder) and download the training and testing data.
+```{r}
+if (!file.exists("data")){
+        dir.create("data")
+        }
+
+fileUrlTrain <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+fileUrlTest <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+if (!file.exists("./data/pml-training.csv")){
+        download.file(fileUrlTrain, destfile = "./data/pml-training.csv", method = "curl")
+}
+if (!file.exists("./data/pml-testing.csv")){
+        download.file(fileUrlTest, destfile = "./data/pml-testing.csv", method = "curl")
+}
+```
+
+Load the data sets
+```{r}
+# na.strings = c("NA","") acually makes cleaning easier yet I was lazy to redo the analysis :) 
+trainingInit <- read.csv("./data/pml-training.csv", header = TRUE, nrows = 20000)
+testingFinal <- read.csv("./data/pml-testing.csv", header = TRUE)
+```
+
+#Cleaning the data
+Let's try to get only useful data from the data set before we start to perform our analysis. First of all, we don't need timestamps, user names, indices (i.e., first 7 columns):
+```{r, results = 'hide'}
+summary(trainingInit)
+```
+
+```{r}
+library(data.table)
+trainingInit <- as.data.table(trainingInit)
+testingFinal <- as.data.table(testingFinal)
+trainingInit <- trainingInit[, -(1:7), with = FALSE]
+testingFinal <- testingFinal[, -(1:7), with = FALSE]
+dim(trainingInit); dim(testingFinal)
+```
+
+Check the number of missing values in the data set
+```{r}
+sum.na <- function(x) {sum(is.na(x))}
+tt <- trainingInit[, lapply(.SD, sum.na)]
+table(unlist(tt))
+```
+
+As we can see, all variables that contain missing values have exactly the same amount of them. Moreover, all missing values are at the same places (see below)
+```{r}
+nas <- trainingInit[, which(tt>0), with = FALSE]
+nas <- nas[complete.cases(nas),]
+dim(trainingInit)[1] - dim(nas)[1]
+```
+
+Only `r dim(nas)[1]` rows from `r dim(trainingInit)[1]` are contain meaningful data, which is just `r round(dim(nas)[1]/dim(trainingInit)[1]*100)`% of data. Therefore, we just remove this variables from the data sets. (Which might be a bad idea yet it will become clear after we perform the analysis. It might be the case that we will need to do some imputing instead.)
+```{r, echo=FALSE}
+rm(nas)
+```
+
+```{r}
+trainingInit <- trainingInit[, -(which(tt>0)), with = FALSE]
+testingFinal <- testingFinal[, -(which(tt>0)), with = FALSE]
+dim(trainingInit); dim(testingFinal)
+```
+
+Now lets get rid of variables that contain `'#DIV/0!'` values. (One can check that such variables do not contain meaningful data, yet we omit that part of our analysis from the report to save some space.)
+```{r}
+find.div0 <- function(x) { '#DIV/0!' %in% x}
+tt <- trainingInit[, lapply(.SD, find.div0)]
+trainingInit <- trainingInit[, -(which(tt == 'TRUE')), with = FALSE]
+testingFinal <- testingFinal[, -(which(tt == 'TRUE')), with = FALSE]
+dim(trainingInit); dim(testingFinal)
+```
+
+```{r, results = 'hide'}
+summary(trainingInit)
+```
+
+We can see that our data set is pretty tidy now, it also has about 2.5 times fewer variables than the original data set.
+
+# Analysis
+First split our clean training data into training and testing sets. We will use the former to build a prediction model and the latter one to evaluate estimator performance (i.e., to check the out-of-sample error).
+```{r}
+library(caret)
+set.seed(333)
+inTrain <- createDataPartition(y = trainingInit$classe, p = 0.7, list = FALSE)
+training <- trainingInit[inTrain[,1]]; testing <- trainingInit[-inTrain[,1]]
+dim(testing); dim(training)
+```
+
+Actually, `r dim(training)[2]` predictors is not that many, so we can try and fit them all into the model and see the results. We will use `train` function from the `caret` package, and choose *random forest* as a training method. We also use 10-fold cross validation (see `trainControl` as a function parameter) to improve the accuracy of the model.  
+```{r}
+# enabling parallel processing
+library(doMC)
+registerDoMC(cores = 4)
+# fitting the model
+modelFit <- train(classe ~ ., data = training, method = "rf", trControl = trainControl(method = "cv", number = 10), prox = TRUE, allowParallel = TRUE)
+print(modelFit$finalModel)
+```
+
+Predicting new values (in testing data set) and check the confusion matrix
+```{r}
+pred <- predict(modelFit, testing)
+C <- confusionMatrix(pred, testing$classe)
+print(C)
+```
+
+We can see that our prediction model is highly accurate (the out-of-sample error is `r as.vector(C$overall[1])`). Lets also check variable importance as we might want to reduce the size of the model by choosing only the most important features.
+```{r}
+varImp(modelFit)
+```
+
+Another way to check that is using `randomForest` function (which, BTW, is the way faster that `train` with `"rf"` method).
+```{r}
+library(randomForest)
+randfor <- randomForest(.outcome ~ ., data = training, importance = TRUE)
+```
+
+```{r, fig.height = 6.5}
+varImpPlot(randfor)
+```
+
+We can probably fit another model with reduced number of predictors and get similar accuracy. Also, we could have used `randomForest` for fitting the model and `rfcv` function from the same package for cross validation (I have actually done that and they work muuuuch faster). However, we won't change anything in this project as our prediction model seems to be rather good. Let's now use it to predict `classe` variable for the original testing data set
+```{r}
+pred <- predict(modelFit, testingFinal)
+pred <- as.vector(pred)
+pred
+```
+
+```{r, echo=FALSE}
+pml_write_files = function(x){
+        if (!file.exists("answers")){
+        dir.create("answers")
+        }    
+                n = length(x)
+        for(i in 1:n){
+                filename = paste0("./answers/problem_id_", i, ".txt")
+                write.table(x[i], file = filename, quote = FALSE, row.names = FALSE, col.names = FALSE)
+        }
+}
+```
+```{r}
+pml_write_files(pred)
+```
+
+Which gives us 20/20 total score after submission.
