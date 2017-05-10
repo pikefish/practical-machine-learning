@@ -68,7 +68,7 @@ nas <- nas[complete.cases(nas),]
 dim(trainingInit)[1] - dim(nas)[1]
 ```
 
-Only `r dim(nas)[1]` rows from `r dim(trainingInit)[1]` are contain meaningful data, which is just `r round(dim(nas)[1]/dim(trainingInit)[1]*100)`% of data. Therefore, we just remove this variables from the data sets. (Which might be a bad idea yet it will become clear after we perform the analysis. It might be the case that we will need to do some imputing instead.)
+Only `r dim(nas)[1]` rows from `r dim(trainingInit)[1]` contain meaningful data, which is just `r round(dim(nas)[1]/dim(trainingInit)[1]*100)`% of data. Therefore, we just remove 'bad' variables from the data sets. (Which might be a bad idea yet it will become clear after we perform the analysis. It might be the case that we will need to do some imputing instead.)
 ```{r, echo=FALSE}
 rm(nas)
 ```
