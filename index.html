@@ -115,7 +115,7 @@ table(unlist(tt))</code></pre>
 nas &lt;- nas[complete.cases(nas),]
 dim(trainingInit)[1] - dim(nas)[1]</code></pre>
 <pre><code>## [1] 19216</code></pre>
-<p>Only 406 rows from 19622 are contain meaningful data, which is just 2% of data. Therefore, we just remove this variables from the data sets. (Which might be a bad idea yet it will become clear after we perform the analysis. It might be the case that we will need to do some imputing instead.)</p>
+<p>Only 406 rows from 19622 contain meaningful data, which is just 2% of data. Therefore, we just remove 'bad' variables from the data sets. (Which might be a bad idea yet it will become clear after we perform the analysis. It might be the case that we will need to do some imputing instead.)</p>
 <pre class="r"><code>trainingInit &lt;- trainingInit[, -(which(tt&gt;0)), with = FALSE]
 testingFinal &lt;- testingFinal[, -(which(tt&gt;0)), with = FALSE]
 dim(trainingInit); dim(testingFinal)</code></pre>
